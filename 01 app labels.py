@@ -1,5 +1,7 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel  # added QLabel
+from PyQt5.QtGui import QIcon, QFont  # added QFont
+from PyQt5.QtCore import Qt  # added for text alignment
 
 """
 sys: This is a built-in Python module that provides access to variables and functions that interact with the Python interpreter.
@@ -18,6 +20,24 @@ class MainWindow(QMainWindow):
         self.setGeometry(00, 00, 500, 500)  # (x,y,width, height)
         # x: distance from the left edge of your screen
         # y: distance from the top of your screen
+        self.setWindowIcon(QIcon("images/Greg.png"))
+        # added - label:
+        self.label = QLabel("Hello", self)
+        # added - change label font size:
+        self.label.setFont(QFont("Arial", 40))
+
+        # added - placing label:
+        self.label.setGeometry(0, 0, 500, 100)
+        self.label.setStyleSheet(
+            # This IS CSS!
+            "color: rgb(0,0,255);"  # Supports HEX, RGB and ColorNames
+            "background-color: #87CEFA;"  # Supports HEX, RGB and ColorNames
+            "border: 10px solid black;"
+            "font-weight: bold;"
+            "font-style: italic;"
+            "text-decoration: underline;"
+        )
+        self.label.setAlignment(Qt.AlignCenter)
 
 
 def main():
