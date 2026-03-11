@@ -2,7 +2,7 @@ import math
 import random
 import PyQt5.QtWidgets as Q
 from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import QSize
+from PyQt5.QtCore import QSize, Qt
 import sys
 
 
@@ -11,13 +11,18 @@ class CustomButton(Q.QPushButton):
         super().__init__(text, parent)
         self.is_mine = is_mine
         self.neighbor_mines = 0
+        self.is_revealed = False
+        self.is_flagged = False
         self.clicked.connect(self.on_click)
         self.setStyleSheet("padding: 0px; margin: 0px;font-size: 20px;")
         self.setFixedSize(button_width, button_height)
 
     def on_click(self):
-        self.reveal()
-        self.setDisabled(True)
+        if not self.is_revealed:
+            if self.is_flagged:
+                return
+            self.is_revealed = True
+            self.setDisabled(True)
 
     @property
     def is_mine(self) -> bool:
@@ -27,8 +32,29 @@ class CustomButton(Q.QPushButton):
     def is_mine(self, is_mine: bool):
         self._is_mine = is_mine
 
+    @property
+    def is_revealed(self) -> bool:
+        return self._is_revealed
+
+    @is_revealed.setter
+    def is_revealed(self, is_revealed: bool):
+        self._is_revealed = is_revealed
+        if self._is_revealed:
+            self.reveal()
+
+    @property
+    def is_flagged(self):
+        return self._is_flagged
+
+    @is_flagged.setter
+    def is_flagged(self, is_flagged):
+        self._is_flagged = is_flagged
+        if self._is_flagged:
+            self.setText("🚩")
+        else:
+            self.setText("")
+
     def reveal(self):
-        print(self.styleSheet())
         if self.is_mine:
             self.setText("💣")
             self.setStyleSheet(self.styleSheet() + "background-color: red;")
@@ -37,6 +63,15 @@ class CustomButton(Q.QPushButton):
             self.setStyleSheet(self.styleSheet() +
                                "background-color: lightgreen;")
 
+    # This is overriding the parent class
+    def mousePressEvent(self, event):
+        if event.button() == Qt.RightButton:
+            self.is_flagged = not self.is_flagged
+
+        elif event.button() == Qt.LeftButton:
+            # Call the base class's method to maintain normal left-click behavior
+            super().mousePressEvent(event)
+
 
 class MainWindow(Q.QMainWindow):
     def __init__(self):
@@ -44,6 +79,8 @@ class MainWindow(Q.QMainWindow):
         self.setWindowTitle("Push Button Example")
         self.setGeometry(500, 550, 600, 400)
         self.setMinimumHeight(550)
+        self.click_count = 0
+        self.total_mines = 20
         self.initUI()
 
     def create_layout(self):
@@ -54,6 +91,7 @@ class MainWindow(Q.QMainWindow):
         self.label_title = Q.QLabel("Many Buttons!", self.central_widget)
         self.grid = Q.QGridLayout()
         self.grid_widget = Q.QWidget()
+
         self.grid_widget.setFixedWidth(500)
         self.grid_widget.setFixedHeight(500)
         self.grid.setContentsMargins(0, 0, 0, 0)
@@ -70,16 +108,29 @@ class MainWindow(Q.QMainWindow):
             for j in range(cols):
                 button = CustomButton(
                     f"{i}, {j}", self, button_height=button_height, button_width=button_width)
+                button.clicked.connect(
+                    lambda checked, row=i, col=j: self.space_clicked(row, col))
                 container.addWidget(button, i, j)
                 self.mine_list[i].append(button)
 
-    def place_mines(self, num_of_mines):
+    def space_clicked(self, row, col):
+        print(row, col)
+        self.click_count += 1
+        if self.click_count == 1:
+            # await our first click
+            self.place_mines(self.total_mines, row, col)
+            self.create_neighbor_mine_counts()
+
+    def place_mines(self, num_of_mines, avoid_row=-100, avoid_col=-100):
         self.mine_count = num_of_mines
         mines_placed = 0
         while mines_placed < self.mine_count:
             # place a mine at a random space.
             choice_row = random.randint(0, len(self.mine_list)-1)
             choice_col = random.randint(0, len(self.mine_list[choice_row])-1)
+            if choice_row in (avoid_row - 1, avoid_row, avoid_row + 1) and choice_col in (avoid_col-1, avoid_col, avoid_col+1):
+                continue
+
             if not self.mine_list[choice_row][choice_col].is_mine:
                 self.mine_list[choice_row][choice_col].is_mine = True
                 mines_placed += 1
@@ -114,8 +165,6 @@ class MainWindow(Q.QMainWindow):
     def initUI(self):
         self.create_layout()
         self.create_buttons(10, 10, self.grid)
-        self.place_mines(20)
-        self.create_neighbor_mine_counts()
 
 
 def main():
