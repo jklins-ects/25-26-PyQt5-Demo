@@ -1,7 +1,7 @@
 import math
 import random
 import PyQt5.QtWidgets as Q
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtCore import QSize, Qt
 import sys
 
@@ -10,12 +10,19 @@ class CustomButton(Q.QPushButton):
     def __init__(self, text="", parent=None, is_mine=False, button_width=100, button_height=50):
         super().__init__(text, parent)
         self.is_mine = is_mine
+        self.clicked.connect(self.on_click)
+        self.setStyleSheet("padding: 0px; margin: 0px;font-size: 20px;")
+        self.reset()
+        self.setFixedSize(button_width, button_height)
+
+    def reset(self):
+        self.is_mine = False
         self.neighbor_mines = 0
         self.is_revealed = False
         self.is_flagged = False
-        self.clicked.connect(self.on_click)
-        self.setStyleSheet("padding: 0px; margin: 0px;font-size: 20px;")
-        self.setFixedSize(button_width, button_height)
+        self.setStyleSheet(self.styleSheet() +
+                           "background-color: lightgrey;")
+        self.setDisabled(False)
 
     def on_click(self):
         if not self.is_revealed:
@@ -41,6 +48,10 @@ class CustomButton(Q.QPushButton):
         self._is_revealed = is_revealed
         if self._is_revealed:
             self.reveal()
+        else:
+            self.setText("")
+            self.setStyleSheet(self.styleSheet() +
+                               "background-color: lightgrey;")
 
     @property
     def is_flagged(self):
@@ -54,7 +65,7 @@ class CustomButton(Q.QPushButton):
         else:
             self.setText("")
 
-    def reveal(self):
+    def reveal(self, end_game: bool = False):
         if self.is_mine:
             self.setText("💣")
             self.setStyleSheet(self.styleSheet() + "background-color: red;")
@@ -62,8 +73,13 @@ class CustomButton(Q.QPushButton):
             self.setText(str(self.neighbor_mines))
             self.setStyleSheet(self.styleSheet() +
                                "background-color: lightgreen;")
+        if end_game:
+            self.setDisabled(True)
+            if self.is_flagged:
+                self.setText("🚩")
 
     # This is overriding the parent class
+
     def mousePressEvent(self, event):
         if event.button() == Qt.RightButton:
             self.is_flagged = not self.is_flagged
@@ -71,6 +87,28 @@ class CustomButton(Q.QPushButton):
         elif event.button() == Qt.LeftButton:
             # Call the base class's method to maintain normal left-click behavior
             super().mousePressEvent(event)
+
+
+class EndScreen(Q.QDialog):
+    def __init__(self, parent=None, title="Game over", message="You win!", won=True):
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.label = Q.QLabel(message, self)
+        # added - change label font size:
+        self.label.setFont(QFont("Arial", 40))
+        layout = Q.QVBoxLayout()
+        self.setLayout(layout)
+        layout.addWidget(self.label, alignment=Qt.AlignCenter)
+        layout.addWidget(
+            Q.QLabel("Would you like to play again?", self), alignment=Qt.AlignCenter)
+        button_row = Q.QHBoxLayout()
+        yes_button = Q.QPushButton("Yes", self)
+        no_button = Q.QPushButton("No", self)
+        button_row.addWidget(yes_button)
+        button_row.addWidget(no_button)
+        layout.addLayout(button_row)
+        no_button.clicked.connect(self.reject)
+        yes_button.clicked.connect(self.accept)
 
 
 class MainWindow(Q.QMainWindow):
@@ -81,6 +119,8 @@ class MainWindow(Q.QMainWindow):
         self.setMinimumHeight(550)
         self.click_count = 0
         self.total_mines = 20
+        self.rows = 20
+        self.cols = 20
         self.initUI()
 
     def create_layout(self):
@@ -113,13 +153,53 @@ class MainWindow(Q.QMainWindow):
                 container.addWidget(button, i, j)
                 self.mine_list[i].append(button)
 
-    def space_clicked(self, row, col):
-        print(row, col)
+    def space_clicked(self, row, col, testing=False):
         self.click_count += 1
         if self.click_count == 1:
             # await our first click
             self.place_mines(self.total_mines, row, col)
             self.create_neighbor_mine_counts()
+            if testing:
+                self.reveal_all(False)
+        if self.mine_list[row][col].is_mine:
+            self.do_ending("You lost!", "Boom! Too bad. You blew up!")
+            return  # do some game over thing
+
+        elif self.mine_list[row][col].neighbor_mines == 0:
+            for i in range(-1, 2):  # -1, 0, 1
+                # i represents the row above, same row, row below
+                current_row = row + i
+                for j in range(-1, 2):
+                    current_col = col + j
+                    if self.is_valid_index_in_mine_list(current_row, current_col):
+                        self.mine_list[current_row][current_col].click()
+        if self.click_count == (self.rows * self.cols) - self.total_mines:
+            self.do_ending("Congratulations, you won!",
+                           "Way to go, you did it!")
+
+    def do_ending(self, title, message):
+        self.reveal_all(True)
+        end_screen = EndScreen(
+            title=title, message=message)
+        again = end_screen.exec()
+        if again == Q.QDialog.Accepted:
+            print("Playing again")
+            self.restart_game()
+        else:
+            print("not playing again")
+            self.close()
+
+    def restart_game(self):
+        while self.grid.count():
+            item = self.grid.takeAt(0)
+            del item
+        self.create_buttons(self.rows, self.cols, self.grid)
+        self.click_count = 0
+
+    def reveal_all(self, end_game=True):
+        for row in self.mine_list:
+            for cell in row:
+                cell.reveal(end_game=end_game)
 
     def place_mines(self, num_of_mines, avoid_row=-100, avoid_col=-100):
         self.mine_count = num_of_mines
@@ -164,12 +244,13 @@ class MainWindow(Q.QMainWindow):
 
     def initUI(self):
         self.create_layout()
-        self.create_buttons(10, 10, self.grid)
+        self.restart_game()
 
 
 def main():
     app = Q.QApplication(sys.argv)
     window = MainWindow()
+
     window.show()
     sys.exit(app.exec_())
 
