@@ -1,7 +1,7 @@
 import math
 import random
 import PyQt5.QtWidgets as Q
-from PyQt5.QtGui import QIcon, QFont
+from PyQt5.QtGui import QIcon, QFont, QKeySequence
 from PyQt5.QtCore import QSize, Qt
 import sys
 
@@ -114,21 +114,35 @@ class EndScreen(Q.QDialog):
 class MainWindow(Q.QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Push Button Example")
-        self.setGeometry(500, 550, 600, 400)
+        self.setWindowTitle("Minesweeper")
+        self.EASY_MINE_COUNT = 20
+        self.EASY_ROWS = 10
+        self.EASY_COLS = 10
+        self.MED_MINE_COUNT = 30
+        self.MED_ROWS = 12
+        self.MED_COLS = 14
+        self.HARD_MINE_COUNT = 80
+        self.HARD_ROWS = 15
+        self.HARD_COLS = 15
+        # self.setGeometry(500, 550, 600, 400)
         self.setMinimumHeight(550)
         self.click_count = 0
-        self.total_mines = 20
-        self.rows = 20
-        self.cols = 20
+        self.total_mines = self.EASY_MINE_COUNT
+        self.rows = self.EASY_ROWS
+        self.cols = self.EASY_COLS
         self.initUI()
 
     def create_layout(self):
+        self.create_menu()
         self.central_widget = Q.QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_container = Q.QVBoxLayout()
         self.central_widget.setLayout(self.main_container)
-        self.label_title = Q.QLabel("Many Buttons!", self.central_widget)
+        self.label_title = Q.QLabel("CMP Minesweeper!", self)
+        self.label_title.setAlignment(Qt.AlignCenter)
+        self.label_title.setStyleSheet(
+            "font-size: 40px; font-weight: bold;")
+        self.main_container.addWidget(self.label_title)
         self.grid = Q.QGridLayout()
         self.grid_widget = Q.QWidget()
 
@@ -136,7 +150,8 @@ class MainWindow(Q.QMainWindow):
         self.grid_widget.setFixedHeight(500)
         self.grid.setContentsMargins(0, 0, 0, 0)
         self.grid.setSpacing(0)
-        self.main_container.addWidget(self.grid_widget)
+        self.main_container.addWidget(
+            self.grid_widget, alignment=Qt.AlignCenter)
         self.grid_widget.setLayout(self.grid)
 
     def create_buttons(self, rows, cols, container):
@@ -152,6 +167,29 @@ class MainWindow(Q.QMainWindow):
                     lambda checked, row=i, col=j: self.space_clicked(row, col))
                 container.addWidget(button, i, j)
                 self.mine_list[i].append(button)
+
+    def create_menu(self):
+        menu = self.menuBar()
+        difficulty_menu = menu.addMenu("&Difficulty")
+        self.add_menu_item(difficulty_menu, "Easy", "Ctrl+E",
+                           self.EASY_MINE_COUNT, self.EASY_ROWS, self.EASY_COLS)
+        self.add_menu_item(difficulty_menu, "Medium", "Ctrl+M",
+                           self.MED_MINE_COUNT, self.MED_ROWS, self.MED_COLS)
+        self.add_menu_item(difficulty_menu, "Hard", "Ctrl+H",
+                           self.HARD_MINE_COUNT, self.HARD_ROWS, self.HARD_COLS)
+
+    def add_menu_item(self, parent_menu, text, shortcut_text, mines, rows, cols):
+        btn_action = Q.QAction(text, self)
+        btn_action.setShortcut(QKeySequence(shortcut_text))
+        parent_menu.addAction(btn_action)
+        btn_action.triggered.connect(
+            lambda clicked, mines=mines, rows=rows, cols=cols: self.update_difficulty(mines, rows, cols))
+
+    def update_difficulty(self, mines, rows, cols):
+        self.mine_count = mines
+        self.rows = rows
+        self.cols = cols
+        self.restart_game()
 
     def space_clicked(self, row, col, testing=False):
         self.click_count += 1
@@ -171,7 +209,9 @@ class MainWindow(Q.QMainWindow):
                 current_row = row + i
                 for j in range(-1, 2):
                     current_col = col + j
-                    if self.is_valid_index_in_mine_list(current_row, current_col):
+                    if (self.is_valid_index_in_mine_list(current_row, current_col) and
+                            not self.mine_list[current_row][current_col].is_flagged):
+
                         self.mine_list[current_row][current_col].click()
         if self.click_count == (self.rows * self.cols) - self.total_mines:
             self.do_ending("Congratulations, you won!",
@@ -192,7 +232,8 @@ class MainWindow(Q.QMainWindow):
     def restart_game(self):
         while self.grid.count():
             item = self.grid.takeAt(0)
-            del item
+            widget = item.widget()
+            widget.deleteLater()
         self.create_buttons(self.rows, self.cols, self.grid)
         self.click_count = 0
 

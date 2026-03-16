@@ -16,8 +16,6 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("My App")
 
-        label = QLabel("Hello!")
-
         button_action = QAction(QIcon("bug.png"), "&Your button", self)
         button_action.setStatusTip("This is your button")
         button_action.triggered.connect(self.toolbar_button_clicked)
@@ -44,6 +42,9 @@ class MainWindow(QMainWindow):
         file_submenu = file_menu.addMenu("Submenu")
 
         file_submenu.addAction(button_action2)
+
+        edit_menu = menu.addMenu("&Edit")
+        edit_menu.addAction(QAction(QIcon("bug.png"), "Your &button3", self))
 
     def toolbar_button_clicked(self, s):
         print("click", s)
